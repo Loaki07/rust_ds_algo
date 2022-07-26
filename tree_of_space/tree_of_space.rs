@@ -10,7 +10,7 @@ pub struct Node<T> {
     is_locked: Option<u32>,
 }
 
-impl<T: Clone> Node<T> {
+impl<T: Clone + Clone> Node<T> {
     pub fn new(data: T) -> Self {
         Self {
             data,
@@ -26,6 +26,15 @@ impl<T: Clone> Node<T> {
     
     fn update_children(&mut self, new_child: Tree<T>) {
         self.children.push(new_child);
+    }
+    
+    fn check_children_for_lock(node: &Tree<T>) -> bool {
+        for child in node.children.iter() {
+            if child.is_locked.is_some() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -70,13 +79,13 @@ impl<T: Clone + std::cmp::PartialEq> MTree<T> {
         return return_node;
     }
     
-    pub fn lock(&mut self, key: T, uid: u32) -> bool {
-        let found_node = self.find_node(self.root.as_ref().unwrap(), &key);
+    pub fn lock(&mut self, key: &T, uid: u32) -> bool {
+        let mut found_node = self.find_node(self.root.as_ref().unwrap(), &key);
         
-        if let Some(fnn) = found_node {
-            let parent_node = fnn.parent;
+        if let Some(ref mut fnn) = found_node {
+            let parent_node = &fnn.parent;
             
-            if parent_node.unwrap().is_locked.is_some() {
+            if parent_node.as_ref().unwrap().is_locked.is_some() {
                 return false;
             }
             
@@ -84,16 +93,20 @@ impl<T: Clone + std::cmp::PartialEq> MTree<T> {
                 return false;
             }
             
-            if fnn.is_locked.is_none() && parent_node.unwrap().is_locked.is_none() {
+            if fnn.is_locked.is_none() && parent_node.as_ref().unwrap().is_locked.is_none() {
                 for child in fnn.children.iter() {
+                    // need to check every child if its locked
+                    if Node::check_children_for_lock(child) {
+                        return false;
+                    }
                     if child.is_locked.is_none() {
-                        continue
+                        continue;
                     } else {
                         return false; 
                     }
-                    fnn.is_locked = Some(uid);
-                    return true;
                 }
+                fnn.is_locked = Some(uid);
+                return true;
             }
         }
         false
